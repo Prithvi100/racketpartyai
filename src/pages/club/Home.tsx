@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import ChatBox from '../../components/ChatBox';
 import { Link } from 'react-router-dom';
@@ -13,49 +14,65 @@ import {
   Area,
 } from 'recharts';
 import { LineChart as LineIcon, AlertTriangle, Shuffle, ArrowRight } from 'lucide-react';
-
-const REVENUE = [
-  { day: 'Mon', current: 4200, baseline: 3800 },
-  { day: 'Tue', current: 4800, baseline: 4100 },
-  { day: 'Wed', current: 5100, baseline: 4300 },
-  { day: 'Thu', current: 4600, baseline: 4000 },
-  { day: 'Fri', current: 5400, baseline: 4500 },
-  { day: 'Sat', current: 6800, baseline: 5800 },
-  { day: 'Sun', current: 5200, baseline: 4700 },
-];
-
-const UTILIZATION = [
-  { hour: '7a', util: 22 },
-  { hour: '9a', util: 64 },
-  { hour: '11a', util: 41 },
-  { hour: '1p', util: 28 },
-  { hour: '3p', util: 35 },
-  { hour: '5p', util: 78 },
-  { hour: '7p', util: 96 },
-  { hour: '9p', util: 52 },
-];
+import { useAuth } from '../../contexts/AuthContext';
+import { buildClubMetrics, loadClubBookings, type ClubMetrics } from '../../lib/clubMetrics';
 
 export default function ClubHome() {
+  const { profile } = useAuth();
+  const [metrics, setMetrics] = useState<ClubMetrics | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    loadClubBookings(profile?.club_id)
+      .then((bookings) => {
+        if (active) setMetrics(buildClubMetrics(bookings));
+      })
+      .catch((e) => {
+        if (active) setErr(String(e));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [profile?.club_id]);
+
+  const hasData = Boolean(metrics?.bookings.length);
+
   return (
     <>
       <PageHeader
         title="Operations overview"
-        subtitle="Demo facility: Pickleball Kingdom — Austin Domain. 14 courts, 1,420 members."
+        subtitle="Live facility metrics from connected court bookings."
       />
       <div className="px-8 py-6 grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
+          {loading && <div className="card p-5 text-sm text-ink-400">Loading club metrics...</div>}
+          {err && <div className="card p-5 text-sm text-red-400">{err}</div>}
+          {!loading && !err && !hasData && (
+            <div className="card p-5">
+              <div className="font-semibold">No court bookings connected</div>
+              <p className="text-sm text-ink-400 mt-1">
+                Import bookings into Supabase `court_bookings` to populate revenue, utilization, and programming mix.
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Stat n="$33.5K" label="Revenue (week)" delta="+11.4%" up />
-            <Stat n="71%" label="Utilization" delta="+6 pts" up />
-            <Stat n="42" label="At-risk members" delta="−14" up />
-            <Stat n="$48.10" label="RevPACH" delta="+$5.10" up />
+            <Stat n={currency(metrics?.totals.revenue ?? 0)} label="Revenue" />
+            <Stat n={`${metrics?.totals.utilization ?? 0}%`} label="Utilization" />
+            <Stat n="N/A" label="At-risk members" />
+            <Stat n={currency(metrics?.totals.revpach ?? 0)} label="RevPACH" />
           </div>
 
           <div className="card p-5">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <div className="font-semibold">Revenue: this week vs baseline</div>
-                <div className="text-xs text-ink-400">Modeled lift attributable to RacketParty pricing recommendations</div>
+                <div className="font-semibold">Revenue by day</div>
+                <div className="text-xs text-ink-400">Computed from connected court bookings</div>
               </div>
               <Link to="/club/yield" className="btn-ghost text-sm">
                 Yield detail <ArrowRight className="size-4" />
@@ -63,13 +80,12 @@ export default function ClubHome() {
             </div>
             <div className="h-56">
               <ResponsiveContainer>
-                <LineChart data={REVENUE}>
+                <LineChart data={metrics?.revenue ?? []}>
                   <CartesianGrid stroke="#2a2c37" strokeDasharray="3 3" />
                   <XAxis dataKey="day" stroke="#7a7c89" fontSize={12} />
                   <YAxis stroke="#7a7c89" fontSize={12} />
                   <Tooltip contentStyle={{ background: '#1a1c25', border: '1px solid #2a2c37', borderRadius: 8 }} />
-                  <Line type="monotone" dataKey="baseline" stroke="#555766" strokeDasharray="4 4" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="current" stroke="#c4ff3e" strokeWidth={2.5} dot={{ r: 3, fill: '#c4ff3e' }} />
+                  <Line type="monotone" dataKey="revenue" stroke="#c4ff3e" strokeWidth={2.5} dot={{ r: 3, fill: '#c4ff3e' }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -78,10 +94,10 @@ export default function ClubHome() {
           <div className="grid md:grid-cols-2 gap-4">
             <div className="card p-5">
               <div className="font-semibold">Court utilization (today)</div>
-              <div className="text-xs text-ink-400 mb-3">Peak at 7 PM. Lunch slots are 28–35%.</div>
+              <div className="text-xs text-ink-400 mb-3">Average utilization by booked hour.</div>
               <div className="h-40">
                 <ResponsiveContainer>
-                  <AreaChart data={UTILIZATION}>
+                  <AreaChart data={metrics?.utilization ?? []}>
                     <defs>
                       <linearGradient id="util" x1="0" x2="0" y1="0" y2="1">
                         <stop offset="0%" stopColor="#c4ff3e" stopOpacity={0.5} />
@@ -146,6 +162,14 @@ function Stat({ n, label, delta, up }: { n: string; label: string; delta?: strin
       </div>
     </div>
   );
+}
+
+function currency(value: number) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: value % 1 ? 2 : 0,
+  }).format(value);
 }
 
 function ShortcutCard({ to, icon, title, body }: any) {

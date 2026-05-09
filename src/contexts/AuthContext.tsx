@@ -11,6 +11,7 @@ export interface Profile {
   sport: 'tennis' | 'pickleball' | 'padel' | 'squash' | 'badminton';
   skill_level?: 'beginner' | 'intermediate' | 'advanced' | 'open';
   city?: string;
+  club_id?: string | null;
 }
 
 interface AuthState {
@@ -18,52 +19,10 @@ interface AuthState {
   profile: Profile | null;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, role: Role, fullName: string) => Promise<void>;
-  signInDemo: (role: Role) => void;
   signOut: () => Promise<void>;
 }
 
 const Ctx = createContext<AuthState | null>(null);
-
-const DEMO_KEY = 'rp.demoProfile';
-
-function demoProfile(role: Role): Profile {
-  const map: Record<Role, Profile> = {
-    coach: {
-      id: 'demo-coach',
-      email: 'coach@demo.rp',
-      full_name: 'Coach Avery',
-      role: 'coach',
-      sport: 'pickleball',
-      city: 'Austin, TX',
-    },
-    player: {
-      id: 'demo-player',
-      email: 'player@demo.rp',
-      full_name: 'Sam Rivera',
-      role: 'player',
-      sport: 'pickleball',
-      skill_level: 'intermediate',
-      city: 'Austin, TX',
-    },
-    parent: {
-      id: 'demo-parent',
-      email: 'parent@demo.rp',
-      full_name: 'Jordan Park',
-      role: 'parent',
-      sport: 'tennis',
-      city: 'Austin, TX',
-    },
-    club_admin: {
-      id: 'demo-club',
-      email: 'ops@demo.rp',
-      full_name: 'Riley Chen',
-      role: 'club_admin',
-      sport: 'pickleball',
-      city: 'Austin, TX',
-    },
-  };
-  return map[role];
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
@@ -71,19 +30,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) {
-      const cached = localStorage.getItem(DEMO_KEY);
-      if (cached) setProfile(JSON.parse(cached));
       setLoading(false);
       return;
     }
 
+    const client = supabase;
     let active = true;
-    supabase.auth.getSession().then(async ({ data }) => {
+    client.auth.getSession().then(async ({ data }) => {
       if (!data.session) {
         if (active) setLoading(false);
         return;
       }
-      const { data: prof } = await supabase
+      const { data: prof } = await client
         .from('profiles')
         .select('*')
         .eq('id', data.session.user.id)
@@ -93,12 +51,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
       }
     });
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: sub } = client.auth.onAuthStateChange(async (_event, session) => {
       if (!session) {
         setProfile(null);
         return;
       }
-      const { data: prof } = await supabase
+      const { data: prof } = await client
         .from('profiles')
         .select('*')
         .eq('id', session.user.id)
@@ -112,13 +70,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function signIn(email: string, password: string) {
-    if (!supabase) throw new Error('Supabase not configured. Use Try the demo.');
+    if (!supabase) throw new Error('Supabase is not configured.');
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
   }
 
   async function signUp(email: string, password: string, role: Role, fullName: string) {
-    if (!supabase) throw new Error('Supabase not configured. Use Try the demo.');
+    if (!supabase) throw new Error('Supabase is not configured.');
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -127,20 +85,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error;
   }
 
-  function signInDemo(role: Role) {
-    const p = demoProfile(role);
-    localStorage.setItem(DEMO_KEY, JSON.stringify(p));
-    setProfile(p);
-  }
-
   async function signOut() {
-    localStorage.removeItem(DEMO_KEY);
     if (supabase) await supabase.auth.signOut();
     setProfile(null);
   }
 
   return (
-    <Ctx.Provider value={{ loading, profile, signIn, signUp, signInDemo, signOut }}>
+    <Ctx.Provider value={{ loading, profile, signIn, signUp, signOut }}>
       {children}
     </Ctx.Provider>
   );

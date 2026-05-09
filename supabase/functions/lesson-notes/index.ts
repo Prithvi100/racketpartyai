@@ -2,7 +2,7 @@
 // POST { transcript, student_name?, student_level?, prior_notes? }
 // Returns { summary, parent_update, next_plan, technique_tags[] }
 
-import { claudeText, corsHeaders } from '../_shared/anthropic.ts';
+import { corsHeaders, openAIJson } from '../_shared/openai.ts';
 
 const SYSTEM = `You turn a coach's spoken lesson recap into structured outputs.
 
@@ -15,6 +15,23 @@ Return STRICT JSON with this shape:
 }
 
 No prose outside the JSON. No markdown fences.`;
+
+const LESSON_NOTES_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['summary', 'parent_update', 'next_plan', 'technique_tags'],
+  properties: {
+    summary: { type: 'string' },
+    parent_update: { type: 'string' },
+    next_plan: { type: 'string' },
+    technique_tags: {
+      type: 'array',
+      minItems: 3,
+      maxItems: 6,
+      items: { type: 'string' },
+    },
+  },
+};
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -32,20 +49,13 @@ Deno.serve(async (req) => {
       (prior_notes ? `Prior notes:\n${prior_notes}\n` : '') +
       `\nReturn the JSON now.`;
 
-    const text = await claudeText({
-      system: SYSTEM,
+    const parsed = await openAIJson({
+      instructions: SYSTEM,
       messages: [{ role: 'user', content: userMsg }],
-      max_tokens: 1024,
+      schemaName: 'lesson_notes',
+      schema: LESSON_NOTES_SCHEMA,
+      max_output_tokens: 1024,
     });
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      const match = text.match(/\{[\s\S]*\}/);
-      if (!match) throw new Error('non-JSON response');
-      parsed = JSON.parse(match[0]);
-    }
 
     return new Response(JSON.stringify(parsed), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -1,32 +1,43 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import { Plus, Search, ChevronRight } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface Student {
   id: string;
   name: string;
   age?: number;
-  level: string;
-  lastSession?: string;
-  trend: 'up' | 'flat' | 'down';
-  tags: string[];
+  skill_level: string | null;
+  goals: string | null;
 }
 
-const SEED: Student[] = [
-  { id: '1', name: 'Maya Patel', age: 11, level: 'Intermediate', lastSession: '2 days ago', trend: 'up', tags: ['topspin-forehand', 'split-step'] },
-  { id: '2', name: 'Diego Alvarez', age: 9, level: 'Beginner', lastSession: '5 days ago', trend: 'up', tags: ['serve', 'consistency'] },
-  { id: '3', name: 'Sofia Nguyen', age: 14, level: 'Advanced', lastSession: 'yesterday', trend: 'flat', tags: ['backhand-slice', 'volleys'] },
-  { id: '4', name: 'Owen Kim', age: 12, level: 'Intermediate', lastSession: '11 days ago', trend: 'down', tags: ['third-shot-drop'] },
-  { id: '5', name: 'Lila Brooks', age: 10, level: 'Beginner', lastSession: 'today', trend: 'up', tags: ['dinking', 'positioning'] },
-  { id: '6', name: 'Theo Singh', age: 13, level: 'Intermediate', lastSession: '17 days ago', trend: 'down', tags: ['serve', 'footwork'] },
-  { id: '7', name: 'Aria Chen', age: 8, level: 'Beginner', lastSession: '3 days ago', trend: 'up', tags: ['ground-strokes'] },
-  { id: '8', name: 'Marcus Lee', age: 16, level: 'Advanced', lastSession: '4 days ago', trend: 'flat', tags: ['kick-serve', 'approach-shot'] },
-];
-
 export default function Students() {
+  const { profile } = useAuth();
   const [q, setQ] = useState('');
-  const filtered = SEED.filter((s) => s.name.toLowerCase().includes(q.toLowerCase()));
-  const stale = SEED.filter((s) => s.trend === 'down');
+  const [students, setStudents] = useState<Student[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+  const filtered = students.filter((s) => s.name.toLowerCase().includes(q.toLowerCase()));
+
+  useEffect(() => {
+    if (!supabase) {
+      setErr('Supabase is not configured.');
+      return;
+    }
+
+    async function load() {
+      const { data, error } = await supabase!
+        .from('students')
+        .select('id, name, age, skill_level, goals')
+        .eq('coach_id', profile?.id)
+        .order('name');
+
+        if (error) throw error;
+        setStudents((data ?? []) as Student[]);
+    }
+
+    load().catch((e: unknown) => setErr(String(e)));
+  }, [profile?.id]);
 
   return (
     <>
@@ -36,15 +47,6 @@ export default function Students() {
         actions={<button className="btn-primary"><Plus className="size-4" /> Add student</button>}
       />
       <div className="px-8 py-6 space-y-6">
-        {stale.length > 0 && (
-          <div className="card p-4 border-clay/30 bg-clay/5">
-            <div className="text-sm font-medium text-clay">⚠ {stale.length} students at risk of churn</div>
-            <div className="text-sm text-ink-300 mt-1">
-              {stale.map((s) => s.name).join(', ')} haven't been on court in 10+ days. Tap to send a comp clinic invite.
-            </div>
-          </div>
-        )}
-
         <div className="flex items-center gap-3">
           <div className="relative flex-1 max-w-sm">
             <Search className="size-4 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -55,9 +57,16 @@ export default function Students() {
               className="input pl-9"
             />
           </div>
-          <div className="text-sm text-ink-400">{filtered.length} of {SEED.length}</div>
+          <div className="text-sm text-ink-400">{filtered.length} of {students.length}</div>
         </div>
 
+        {err && <div className="card p-5 text-sm text-red-400">{err}</div>}
+        {!err && students.length === 0 && (
+          <div className="card p-5">
+            <div className="font-semibold">No students yet</div>
+            <p className="text-sm text-ink-400 mt-1">Add real student records to Supabase `students` to start tracking lessons.</p>
+          </div>
+        )}
         <div className="card divide-y divide-ink-700/60 overflow-hidden">
           {filtered.map((s) => (
             <button key={s.id} className="w-full px-4 py-3 flex items-center gap-4 text-left hover:bg-ink-800/40">
@@ -65,18 +74,15 @@ export default function Students() {
                 {s.name.split(' ').map((p) => p[0]).join('')}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-medium">{s.name} <span className="text-ink-500 font-normal text-sm">· {s.age} · {s.level}</span></div>
+                <div className="font-medium">
+                  {s.name} <span className="text-ink-500 font-normal text-sm">· {s.age ?? 'age not set'} · {s.skill_level ?? 'level not set'}</span>
+                </div>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {s.tags.map((t) => (
-                    <span key={t} className="pill">{t}</span>
-                  ))}
+                  {s.goals && <span className="pill">{s.goals}</span>}
                 </div>
               </div>
               <div className="text-right text-sm">
-                <div className={s.trend === 'up' ? 'text-court' : s.trend === 'down' ? 'text-clay' : 'text-ink-400'}>
-                  {s.trend === 'up' ? '↑ improving' : s.trend === 'down' ? '↓ at risk' : '→ steady'}
-                </div>
-                <div className="text-xs text-ink-500">{s.lastSession}</div>
+                <div className="text-ink-400">Profile</div>
               </div>
               <ChevronRight className="size-4 text-ink-500" />
             </button>

@@ -16,7 +16,7 @@ The landing page is itself the product surface: an AI chat box that routes you t
 - Tailwind CSS
 - React Router
 - Supabase (auth + Postgres + Edge Functions)
-- Anthropic Claude (Sonnet 4.6) via Edge Functions
+- OpenAI Responses API via Supabase Edge Functions
 - Recharts for ops analytics
 
 ## Project layout
@@ -45,26 +45,38 @@ supabase/
 
 ```bash
 npm install
-cp .env.example .env   # fill in Supabase URL + anon key (or skip — demo mode works without)
+cp .env.example .env   # fill in Supabase URL + anon key
 npm run dev
 ```
 
-The app runs in **demo mode** without Supabase configured: auth uses local-storage profiles
-(`Try the coach demo`, etc.), and the AI surfaces use canned-but-realistic responses so the UI
-feels alive in any environment.
+Supabase is required. If the environment variables or Edge Functions are missing, the app shows
+configuration or empty-data states instead of generating placeholder users, metrics, or AI output.
 
 ## Wiring up Supabase
 
 1. Create a project at supabase.com.
 2. Run the migration in `supabase/migrations/0001_init.sql`.
 3. Deploy the Edge Functions (`supabase functions deploy chat lesson-notes drill-suggest club-insights`).
-4. Set `ANTHROPIC_API_KEY` as a function secret.
+4. Set `OPENAI_API_KEY` as a function secret. Optionally set `OPENAI_MODEL` and
+   `OPENAI_REASONING_EFFORT`; the Edge Functions default to `gpt-5.4-mini`.
 5. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in `.env`.
 
-## Demo accounts
+```bash
+supabase secrets set OPENAI_API_KEY=... --project-ref xegzwzsyoxgwwyxyaabu
+supabase secrets set OPENAI_MODEL=gpt-5.4-mini OPENAI_REASONING_EFFORT=low --project-ref xegzwzsyoxgwwyxyaabu
+supabase functions deploy chat lesson-notes drill-suggest club-insights --project-ref xegzwzsyoxgwwyxyaabu
+```
 
-Click **Try the coach / player / club demo** on the landing page or login screen — it
-bypasses auth and seeds a local profile so you can walk all three workspaces.
+## Production data
+
+The product surfaces read from Supabase tables directly:
+
+- coach workspace: `students`, `lessons`, `drills`, `highlights`
+- player workspace: `matches`, `match_signups`, `highlights`, coach `profiles`
+- club workspace: `court_bookings`
+
+Churn modeling intentionally stays disabled until member roster, attendance, and payment-event
+tables are connected.
 
 ## Roadmap (90-day MVP)
 

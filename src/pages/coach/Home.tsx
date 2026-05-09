@@ -1,11 +1,38 @@
 import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import ChatBox from '../../components/ChatBox';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
 import { Mic, Dumbbell, Sparkles, Users, ArrowRight } from 'lucide-react';
 
 export default function CoachHome() {
   const { profile } = useAuth();
+  const [stats, setStats] = useState({ students: 0, lessons: 0, drills: 0, highlights: 0 });
+
+  useEffect(() => {
+    if (!supabase || !profile?.id) return;
+    const coachId = profile.id;
+
+    async function load() {
+      const [students, lessons, drills, highlights] = await Promise.all([
+        supabase!.from('students').select('id', { count: 'exact', head: true }).eq('coach_id', coachId),
+        supabase!.from('lessons').select('id', { count: 'exact', head: true }).eq('coach_id', coachId),
+        supabase!.from('drills').select('id', { count: 'exact', head: true }).eq('author_id', coachId),
+        supabase!.from('highlights').select('id', { count: 'exact', head: true }),
+      ]);
+
+      setStats({
+        students: students.count ?? 0,
+        lessons: lessons.count ?? 0,
+        drills: drills.count ?? 0,
+        highlights: highlights.count ?? 0,
+      });
+    }
+
+    load().catch(() => {});
+  }, [profile?.id]);
+
   return (
     <>
       <PageHeader
@@ -15,10 +42,10 @@ export default function CoachHome() {
       <div className="px-8 py-6 grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Stat n={42} label="Students" />
-            <Stat n={186} label="Lessons logged" />
-            <Stat n={612} label="Drills assigned" />
-            <Stat n="$3.4K" label="Highlight revenue (30d)" />
+            <Stat n={stats.students} label="Students" />
+            <Stat n={stats.lessons} label="Lessons logged" />
+            <Stat n={stats.drills} label="Drills created" />
+            <Stat n={stats.highlights} label="Highlights" />
           </div>
 
           <Link

@@ -6,7 +6,7 @@ import { Mic, Square, Sparkles, Copy, Send, RefreshCw } from 'lucide-react';
 
 export default function LessonNew() {
   const [transcript, setTranscript] = useState('');
-  const [studentName, setStudentName] = useState('Maya Patel');
+  const [studentName, setStudentName] = useState('');
   const [studentLevel, setStudentLevel] = useState('Intermediate');
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
@@ -131,7 +131,7 @@ export default function LessonNew() {
                 value={transcript}
                 onChange={(e) => setTranscript(e.target.value)}
                 rows={8}
-                placeholder="Worked on Maya's topspin forehand today. She's getting the brush but her contact point is still late on the high ball. Got into a 12-ball rally late in the lesson. Footwork is the next thing to drill — she's loading the wrong foot on the wide ball…"
+                placeholder="Paste or dictate your real lesson recap."
                 className="input font-mono text-sm"
               />
             </div>
@@ -153,8 +153,6 @@ export default function LessonNew() {
             </div>
             {err && <div className="mt-3 text-sm text-red-400">{err}</div>}
           </div>
-
-          <SampleHints onPick={(t) => setTranscript(t)} />
         </div>
 
         <div className="space-y-4">
@@ -237,31 +235,6 @@ function NotePanel({
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-const SAMPLES = [
-  "Maya's topspin forehand really clicked today. She's brushing up consistently but her contact point is late on the high ball. We got into a 12-ball cross-court rally late in the lesson — that was the breakthrough moment. Footwork on the wide ball is what we drill next, she's loading the wrong foot.",
-  'Worked with Diego on serves for 30 minutes. We hit targets — he loved that. Toss is still inconsistent, drifts to the left. Live points went well, he won 4 of 7. Confidence is way up. Next time more serve targets and a return drill.',
-  'Sofia practiced her backhand slice for 20 mins, then approach shots. Slice is staying low which is great. On the approach shot she keeps drifting to the middle of the court instead of recovering to the open side. Volleys at the end were sharp.',
-];
-
-function SampleHints({ onPick }: { onPick: (t: string) => void }) {
-  return (
-    <div className="card p-4">
-      <div className="text-sm text-ink-300 font-medium mb-2">Try a sample recap</div>
-      <div className="space-y-2">
-        {SAMPLES.map((s, i) => (
-          <button
-            key={i}
-            onClick={() => onPick(s)}
-            className="text-left text-sm text-ink-300 hover:text-ink-50 px-3 py-2 rounded-lg border border-ink-700 hover:border-ink-500 w-full"
-          >
-            {s.slice(0, 120)}…
-          </button>
-        ))}
-      </div>
     </div>
   );
 }

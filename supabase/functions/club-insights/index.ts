@@ -2,7 +2,7 @@
 // POST { kind: 'yield'|'churn'|'mix'|'conversion', context: any }
 // Returns markdown analysis with concrete recommendations.
 
-import { claudeText, corsHeaders } from '../_shared/anthropic.ts';
+import { corsHeaders, openAIText } from '../_shared/openai.ts';
 
 const SYSTEMS: Record<string, string> = {
   yield: `You are a yield-management analyst for racquet facilities. Treat court-time as perishable inventory like an airline seat. Given the data, produce: (1) the lowest- and highest-utilization slots, (2) recommended price actions for the next 14 days with explainability, (3) one experiment to A/B test. Be concrete. Use markdown.`,
@@ -21,15 +21,15 @@ Deno.serve(async (req) => {
     const system = SYSTEMS[kind];
     if (!system) throw new Error(`unknown kind: ${kind}`);
 
-    const text = await claudeText({
-      system,
+    const text = await openAIText({
+      instructions: system,
       messages: [
         {
           role: 'user',
           content: `Data:\n\`\`\`json\n${JSON.stringify(context, null, 2)}\n\`\`\``,
         },
       ],
-      max_tokens: 1500,
+      max_output_tokens: 1500,
     });
 
     return new Response(JSON.stringify({ analysis: text }), {

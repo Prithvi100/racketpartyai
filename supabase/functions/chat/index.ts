@@ -2,7 +2,7 @@
 // POST { messages: [{role, content}], persona?: 'coach'|'player'|'club'|'visitor' }
 // Returns SSE stream of text deltas.
 
-import { callClaude, corsHeaders, type Msg } from '../_shared/anthropic.ts';
+import { callOpenAI, corsHeaders, type Msg } from '../_shared/openai.ts';
 
 const SYSTEM_BASE = `You are RacketParty's AI concierge — a sharp, friendly assistant for racquet sports (tennis, pickleball, padel, squash, badminton).
 
@@ -33,11 +33,14 @@ Deno.serve(async (req) => {
     const { messages, persona = 'visitor' } = await req.json();
     if (!Array.isArray(messages)) throw new Error('messages[] required');
 
+    const safeMessages = normalizeMessages(messages);
+    if (safeMessages.length === 0) throw new Error('at least one message required');
+
     const system = `${SYSTEM_BASE}\n\n${PERSONAS[persona] ?? PERSONAS.visitor}`;
-    const upstream = await callClaude({
-      system,
-      messages: messages as Msg[],
-      max_tokens: 1024,
+    const upstream = await callOpenAI({
+      instructions: system,
+      messages: safeMessages,
+      max_output_tokens: 1024,
       stream: true,
     });
 
@@ -46,7 +49,7 @@ Deno.serve(async (req) => {
       return new Response(text, { status: 502, headers: corsHeaders });
     }
 
-    // Re-stream as plain text deltas (one chunk per content_block_delta).
+    // Re-stream OpenAI server-sent events as plain text deltas for the browser.
     const reader = upstream.body.getReader();
     const decoder = new TextDecoder();
     const encoder = new TextEncoder();
@@ -54,6 +57,7 @@ Deno.serve(async (req) => {
     const stream = new ReadableStream({
       async start(controller) {
         let buffer = '';
+        let failed = false;
         try {
           while (true) {
             const { value, done } = await reader.read();
@@ -67,8 +71,20 @@ Deno.serve(async (req) => {
               if (!data || data === '[DONE]') continue;
               try {
                 const ev = JSON.parse(data);
-                if (ev.type === 'content_block_delta' && ev.delta?.text) {
-                  controller.enqueue(encoder.encode(ev.delta.text));
+                if (ev.type === 'response.output_text.delta' && typeof ev.delta === 'string') {
+                  controller.enqueue(encoder.encode(ev.delta));
+                }
+                if (ev.type === 'response.refusal.delta' && typeof ev.delta === 'string') {
+                  controller.enqueue(encoder.encode(ev.delta));
+                }
+                if (ev.type === 'response.failed' || ev.type === 'error') {
+                  const message =
+                    ev.error?.message ??
+                    ev.response?.error?.message ??
+                    'OpenAI stream error';
+                  failed = true;
+                  controller.error(new Error(message));
+                  return;
                 }
               } catch {
                 // ignore parse errors
@@ -76,7 +92,9 @@ Deno.serve(async (req) => {
             }
           }
         } finally {
-          controller.close();
+          const tail = decoder.decode();
+          if (tail) buffer += tail;
+          if (!failed) controller.close();
         }
       },
     });
@@ -95,3 +113,14 @@ Deno.serve(async (req) => {
     });
   }
 });
+
+function normalizeMessages(input: unknown[]): Msg[] {
+  return input
+    .filter((message): message is Record<string, unknown> => Boolean(message) && typeof message === 'object')
+    .map((message) => ({
+      role: message.role === 'assistant' ? 'assistant' : 'user',
+      content: String(message.content ?? '').slice(0, 4000),
+    }))
+    .filter((message) => message.content.trim().length > 0)
+    .slice(-12);
+}

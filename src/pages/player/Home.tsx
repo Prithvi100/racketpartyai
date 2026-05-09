@@ -1,11 +1,40 @@
 import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import ChatBox from '../../components/ChatBox';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
 import { Trophy, Sparkles, Search, ArrowRight, Calendar } from 'lucide-react';
 
 export default function PlayerHome() {
   const { profile } = useAuth();
+  const [upcomingMatch, setUpcomingMatch] = useState<any | null>(null);
+  const [stats, setStats] = useState({ matches: 0, highlights: 0 });
+
+  useEffect(() => {
+    if (!supabase || !profile?.id) return;
+    const playerId = profile.id;
+
+    async function load() {
+      const [matches, highlights, nextMatch] = await Promise.all([
+        supabase!.from('match_signups').select('match_id', { count: 'exact', head: true }).eq('player_id', playerId),
+        supabase!.from('highlights').select('id', { count: 'exact', head: true }),
+        supabase!
+          .from('matches')
+          .select('id, starts_at, skill_level, venue, city, max_players, match_signups(player_id)')
+          .gte('starts_at', new Date().toISOString())
+          .order('starts_at', { ascending: true })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+      setStats({ matches: matches.count ?? 0, highlights: highlights.count ?? 0 });
+      setUpcomingMatch(nextMatch.data);
+    }
+
+    load().catch(() => {});
+  }, [profile?.id]);
+
   return (
     <>
       <PageHeader
@@ -15,10 +44,10 @@ export default function PlayerHome() {
       <div className="px-8 py-6 grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Stat n="3.5" label="Skill rating" />
-            <Stat n="12" label="Matches played" />
-            <Stat n="74%" label="Win rate (30d)" />
-            <Stat n={9} label="New highlights" />
+            <Stat n={profile?.skill_level ?? 'Not set'} label="Skill level" />
+            <Stat n={stats.matches} label="Matches joined" />
+            <Stat n={profile?.sport ?? 'Not set'} label="Sport" />
+            <Stat n={stats.highlights} label="Highlights" />
           </div>
 
           <div className="card p-6 flex items-center gap-4">
@@ -26,8 +55,12 @@ export default function PlayerHome() {
               <Trophy className="size-6" />
             </div>
             <div className="flex-1">
-              <div className="font-medium">Tonight at 7 PM — looking for a 4th</div>
-              <div className="text-sm text-ink-400">3.5 doubles · Pickle Rage Austin · 3 spots filled</div>
+              <div className="font-medium">{upcomingMatch ? formatWhen(upcomingMatch.starts_at) : 'No upcoming matches found'}</div>
+              <div className="text-sm text-ink-400">
+                {upcomingMatch
+                  ? `${upcomingMatch.skill_level} · ${upcomingMatch.venue ?? 'Venue TBD'} · ${upcomingMatch.match_signups?.length ?? 0}/${upcomingMatch.max_players} players`
+                  : 'Post or join a real match to populate this panel.'}
+              </div>
             </div>
             <Link to="/player/matches" className="btn-primary">Join <ArrowRight className="size-4" /></Link>
           </div>
@@ -75,6 +108,16 @@ export default function PlayerHome() {
       </div>
     </>
   );
+}
+
+function formatWhen(value: string) {
+  return new Intl.DateTimeFormat('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(value));
 }
 
 function Stat({ n, label }: { n: string | number; label: string }) {

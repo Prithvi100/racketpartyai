@@ -1,7 +1,6 @@
 -- RacketParty initial schema
 -- Roles: coach, player, parent, club_admin
-
-create extension if not exists "uuid-ossp";
+-- Use gen_random_uuid() (PG13+) so defaults work without uuid-ossp on the remote.
 
 create type user_role as enum ('coach', 'player', 'parent', 'club_admin');
 create type sport as enum ('tennis', 'pickleball', 'padel', 'squash', 'badminton');
@@ -23,7 +22,7 @@ create table profiles (
 );
 
 create table clubs (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   name text not null,
   city text,
   num_courts int default 0,
@@ -36,7 +35,7 @@ alter table profiles
   add constraint profiles_club_fk foreign key (club_id) references clubs(id) on delete set null;
 
 create table students (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   coach_id uuid not null references profiles(id) on delete cascade,
   name text not null,
   age int,
@@ -47,7 +46,7 @@ create table students (
 );
 
 create table lessons (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   coach_id uuid not null references profiles(id) on delete cascade,
   student_id uuid references students(id) on delete set null,
   scheduled_at timestamptz not null,
@@ -62,7 +61,7 @@ create table lessons (
 );
 
 create table drills (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   author_id uuid references profiles(id) on delete set null,
   title text not null,
   sport sport default 'pickleball',
@@ -77,7 +76,7 @@ create table drills (
 );
 
 create table matches (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   organizer_id uuid not null references profiles(id) on delete cascade,
   sport sport default 'pickleball',
   skill_level skill_level default 'intermediate',
@@ -97,7 +96,7 @@ create table match_signups (
 );
 
 create table highlights (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   lesson_id uuid references lessons(id) on delete cascade,
   student_id uuid references students(id) on delete set null,
   video_url text,
@@ -108,23 +107,23 @@ create table highlights (
 );
 
 create table chat_threads (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   user_id uuid references profiles(id) on delete cascade,
   title text,
   created_at timestamptz default now()
 );
 
 create table chat_messages (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   thread_id uuid not null references chat_threads(id) on delete cascade,
   role text not null check (role in ('user', 'assistant', 'system')),
   content text not null,
   created_at timestamptz default now()
 );
 
--- Synthetic ops data for club analytics
+-- Court booking data imported from a club booking system.
 create table court_bookings (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   club_id uuid references clubs(id) on delete cascade,
   court_no int,
   starts_at timestamptz,

@@ -78,11 +78,15 @@ export default function ChatBox({
         abortRef.current.signal,
       );
     } catch (e) {
+      const message =
+        e instanceof TypeError && /fetch/i.test(e.message)
+          ? 'AI service is unreachable. Check that Supabase Edge Functions are deployed and that the anon key is set in .env.'
+          : `Sorry — I hit an error: ${String(e)}`;
       setMessages((m) => {
         const copy = m.slice();
         copy[copy.length - 1] = {
           role: 'assistant',
-          content: `Sorry — I hit an error: ${String(e)}`,
+          content: message,
         };
         return copy;
       });

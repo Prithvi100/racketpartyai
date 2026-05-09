@@ -2,6 +2,9 @@ node_modules
 dist
 .env
 .env.local
+supabase/functions/.env
 .DS_Store
 *.log
 .vite
+tsconfig.tsbuildinfo
+supabase/.temp/

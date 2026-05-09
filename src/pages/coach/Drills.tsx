@@ -1,33 +1,50 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import PageHeader from '../../components/PageHeader';
 import { suggestDrills, type DrillSuggestion } from '../../lib/ai';
 import { Sparkles, Heart, Plus, Filter } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 interface CommunityDrill {
   id: string;
   title: string;
   goal: string;
-  level: string;
-  duration: number;
-  upvotes: number;
-  author: string;
-  tags: string[];
+  skill_level: string | null;
+  duration_min: number | null;
+  upvotes: number | null;
+  author?: { full_name: string | null } | null;
+  description: string | null;
 }
-
-const COMMUNITY: CommunityDrill[] = [
-  { id: '1', title: 'Cross-court Consistency Ladder', goal: 'Forehand depth', level: 'Intermediate', duration: 12, upvotes: 142, author: 'Coach Avery', tags: ['forehand', 'depth'] },
-  { id: '2', title: 'Two-bounce Decision Drill', goal: 'Kitchen-line decisions', level: 'Beginner', duration: 10, upvotes: 88, author: 'Coach Park', tags: ['third-shot-drop', 'positioning'] },
-  { id: '3', title: 'Targets on the T', goal: 'Serve placement', level: 'Intermediate', duration: 8, upvotes: 76, author: 'Coach Sims', tags: ['serve'] },
-  { id: '4', title: 'Mirror Footwork', goal: 'Lateral footwork', level: 'Beginner', duration: 6, upvotes: 64, author: 'Coach Reyes', tags: ['footwork', 'split-step'] },
-  { id: '5', title: 'Dink Battle', goal: 'Soft-game patience', level: 'Intermediate', duration: 15, upvotes: 122, author: 'Coach Le', tags: ['dinking'] },
-  { id: '6', title: 'Approach & Volley Combo', goal: 'Net transition', level: 'Advanced', duration: 12, upvotes: 51, author: 'Coach Ndiaye', tags: ['approach-shot', 'volley'] },
-];
 
 export default function Drills() {
   const [busy, setBusy] = useState(false);
   const [picks, setPicks] = useState<DrillSuggestion[] | null>(null);
   const [level, setLevel] = useState('Intermediate');
-  const [tags, setTags] = useState('topspin-forehand, split-step');
+  const [tags, setTags] = useState('');
+  const [community, setCommunity] = useState<CommunityDrill[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!supabase) {
+      setErr('Supabase is not configured.');
+      return;
+    }
+
+    async function load() {
+      const { data, error } = await supabase!
+        .from('drills')
+        .select('id, title, goal, skill_level, duration_min, upvotes, description, author:profiles(full_name)')
+        .eq('is_public', true)
+        .order('upvotes', { ascending: false });
+
+        if (error) throw error;
+      setCommunity((data ?? []).map((row: any) => ({
+        ...row,
+        author: Array.isArray(row.author) ? row.author[0] : row.author,
+      })));
+    }
+
+    load().catch((e: unknown) => setErr(String(e)));
+  }, []);
 
   async function suggest() {
     setBusy(true);
@@ -64,7 +81,7 @@ export default function Drills() {
             </div>
             <div>
               <label className="label">Recent tags (comma-separated)</label>
-              <input className="input" value={tags} onChange={(e) => setTags(e.target.value)} />
+              <input className="input" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="Optional" />
             </div>
             <button onClick={suggest} disabled={busy} className="btn-primary w-full">
               <Sparkles className="size-4" />
@@ -91,25 +108,30 @@ export default function Drills() {
         <div className="lg:col-span-2">
           <div className="flex items-center gap-3 mb-4">
             <h3 className="font-semibold">Community library</h3>
-            <span className="pill">{COMMUNITY.length} drills</span>
+            <span className="pill">{community.length} drills</span>
             <button className="btn-ghost text-xs ml-auto"><Filter className="size-3.5" /> Filter</button>
           </div>
+          {err && <div className="card p-5 text-sm text-red-400">{err}</div>}
+          {!err && community.length === 0 && (
+            <div className="card p-5">
+              <div className="font-semibold">No public drills yet</div>
+              <p className="text-sm text-ink-400 mt-1">Create public drills in Supabase to populate this library.</p>
+            </div>
+          )}
           <div className="grid sm:grid-cols-2 gap-3">
-            {COMMUNITY.map((d) => (
+            {community.map((d) => (
               <div key={d.id} className="card p-4">
                 <div className="flex items-center justify-between gap-2">
                   <div className="font-medium">{d.title}</div>
                   <button className="text-ink-400 hover:text-clay text-xs flex items-center gap-1">
-                    <Heart className="size-3.5" /> {d.upvotes}
+                    <Heart className="size-3.5" /> {d.upvotes ?? 0}
                   </button>
                 </div>
                 <div className="text-xs text-court mt-0.5">{d.goal}</div>
-                <div className="text-xs text-ink-400 mt-1">{d.level} · {d.duration} min · {d.author}</div>
-                <div className="flex flex-wrap gap-1 mt-3">
-                  {d.tags.map((t) => (
-                    <span key={t} className="pill">#{t}</span>
-                  ))}
+                <div className="text-xs text-ink-400 mt-1">
+                  {d.skill_level ?? 'Any level'} · {d.duration_min ?? 0} min · {d.author?.full_name ?? 'Unknown author'}
                 </div>
+                {d.description && <p className="text-sm text-ink-300 mt-3">{d.description}</p>}
               </div>
             ))}
           </div>

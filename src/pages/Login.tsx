@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import Logo from '../components/Logo';
 
 export default function Login() {
-  const { signIn, signInDemo } = useAuth();
+  const { signIn } = useAuth();
   const nav = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -46,14 +46,6 @@ export default function Login() {
             {err && <div className="text-sm text-red-400">{err}</div>}
             <button className="btn-primary w-full" disabled={busy}>{busy ? '...' : 'Sign in'}</button>
           </form>
-          <div className="my-5 flex items-center gap-3 text-xs text-ink-500">
-            <div className="flex-1 h-px bg-ink-700" /> or jump into a demo <div className="flex-1 h-px bg-ink-700" />
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <button className="btn-outline text-sm" onClick={() => { signInDemo('coach'); nav('/coach'); }}>Coach</button>
-            <button className="btn-outline text-sm" onClick={() => { signInDemo('player'); nav('/player'); }}>Player</button>
-            <button className="btn-outline text-sm" onClick={() => { signInDemo('club_admin'); nav('/club'); }}>Club</button>
-          </div>
           <div className="mt-5 text-sm text-ink-400 text-center">
             New here? <Link to="/signup" className="text-court">Create an account</Link>
           </div>

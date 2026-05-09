@@ -11,7 +11,7 @@ const ROLES: { id: Role; title: string; sub: string; icon: React.ReactNode }[] =
 ];
 
 export default function Signup() {
-  const { signUp, signInDemo } = useAuth();
+  const { signUp } = useAuth();
   const nav = useNavigate();
   const [role, setRole] = useState<Role>('coach');
   const [fullName, setFullName] = useState('');
@@ -87,14 +87,6 @@ export default function Signup() {
             </div>
           </form>
 
-          <div className="my-5 flex items-center gap-3 text-xs text-ink-500">
-            <div className="flex-1 h-px bg-ink-700" /> or skip and try a demo <div className="flex-1 h-px bg-ink-700" />
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <button className="btn-outline text-sm" onClick={() => { signInDemo('coach'); nav('/coach'); }}>Coach</button>
-            <button className="btn-outline text-sm" onClick={() => { signInDemo('player'); nav('/player'); }}>Player</button>
-            <button className="btn-outline text-sm" onClick={() => { signInDemo('club_admin'); nav('/club'); }}>Club</button>
-          </div>
           <div className="mt-5 text-sm text-ink-400 text-center">
             Already have an account? <Link to="/login" className="text-court">Sign in</Link>
           </div>
